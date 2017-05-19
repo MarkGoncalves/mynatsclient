@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using MyNatsClient;
 
 namespace MrSam
