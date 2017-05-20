@@ -9,7 +9,7 @@ namespace MrSam
 
         public static void Main(string[] args)
         {
-            var cnInfo = new ConnectionInfo("192.168.2.17")
+            var cnInfo = new ConnectionInfo("localhost")
             {
                 Credentials = new Credentials("test", "p@ssword123")
             };
