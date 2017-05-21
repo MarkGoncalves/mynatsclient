@@ -86,17 +86,11 @@ namespace MyNatsClient.Internals
                 Swallow.Everything(
                         () =>
                         {
-#if !NETSTANDARD1_6
-                            readStream?.Close();
-#endif
                             readStream?.Dispose();
                             readStream = null;
                         },
                         () =>
                         {
-#if !NETSTANDARD1_6
-                            writeStream?.Close();
-#endif
                             writeStream?.Dispose();
                             writeStream = null;
                         },
@@ -107,9 +101,7 @@ namespace MyNatsClient.Internals
 
                             if (socket.Connected)
                                 socket.Shutdown(SocketShutdown.Both);
-#if !NETSTANDARD1_6
-                            socket.Close();
-#endif
+
                             socket.Dispose();
                             socket = null;
                         });
