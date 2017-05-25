@@ -242,7 +242,7 @@ namespace MyNatsClient.IntegrationTests
             await _client.PubAsync(subject, "Test2");
             WaitOne();
 
-            _client.Unsub(subscription.SubscriptionInfo);
+            await _client.UnsubAsync(subscription.SubscriptionInfo);
 
             await _client.PubAsync(subject, "Test3");
             WaitOne();

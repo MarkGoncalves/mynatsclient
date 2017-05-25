@@ -15,27 +15,34 @@ namespace MyNatsClient.Internals
     {
         private static readonly ILogger Logger = LoggerManager.Resolve(typeof(NatsConnectionManager));
 
-        public ISocketFactory SocketFactory { private get; set; }
+        private readonly ISocketFactory _socketFactory;
 
-        internal NatsConnectionManager(SocketFactory socketFactory)
+        internal NatsConnectionManager(ISocketFactory socketFactory)
         {
             EnsureArg.IsNotNull(socketFactory, nameof(socketFactory));
 
-            SocketFactory = new SocketFactory();
+            _socketFactory = socketFactory;
         }
 
         public Tuple<INatsConnection, IList<IOp>> OpenConnection(ConnectionInfo connectionInfo, CancellationToken cancellationToken)
         {
             EnsureArg.IsNotNull(connectionInfo, nameof(connectionInfo));
 
+            if (cancellationToken.IsCancellationRequested)
+                throw NatsException.CouldNotEstablishAnyConnection();
+
             var hosts = new Queue<Host>(connectionInfo.Hosts.GetRandomized());
+
             while (!cancellationToken.IsCancellationRequested && hosts.Any())
             {
                 var host = hosts.Dequeue();
 
                 try
                 {
-                    return EstablishConnection(host, connectionInfo, cancellationToken);
+                    return EstablishConnection(
+                        host,
+                        connectionInfo,
+                        cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -54,22 +61,28 @@ namespace MyNatsClient.Internals
 
             try
             {
-                socket = SocketFactory.Create(connectionInfo.SocketOptions);
-                socket.Connect(host, connectionInfo.SocketOptions.ConnectTimeoutMs, cancellationToken);
+                socket = _socketFactory.Create(connectionInfo.SocketOptions);
+
+                socket.Connect(
+                    host,
+                    connectionInfo.SocketOptions.ConnectTimeoutMs,
+                    cancellationToken);
 
                 readStream = new BufferedStream(socket.CreateReadStream(), socket.ReceiveBufferSize);
 
                 var reader = new NatsOpStreamReader(readStream);
-                var readOps = new List<IOp>();
-                Func<IOp> readOne = () =>
+                var consumedOps = new List<IOp>();
+
+                IOp ReadOne()
                 {
                     var op = reader.ReadOp().FirstOrDefault();
                     if (op != null)
-                        readOps.Add(op);
-                    return op;
-                };
+                        consumedOps.Add(op);
 
-                var serverInfo = VerifyConnection(host, connectionInfo, socket, readOne);
+                    return op;
+                }
+
+                var serverInfo = VerifyConnection(host, connectionInfo, socket, ReadOne);
 
                 writeStream = new BufferedStream(socket.CreateWriteStream(), socket.SendBufferSize);
 
@@ -79,7 +92,7 @@ namespace MyNatsClient.Internals
                     writeStream,
                     readStream,
                     reader,
-                    cancellationToken), readOps);
+                    cancellationToken), consumedOps);
             }
             catch
             {

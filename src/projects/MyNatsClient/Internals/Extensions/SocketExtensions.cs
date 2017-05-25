@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace MyNatsClient.Internals.Extensions
 {
@@ -11,7 +12,8 @@ namespace MyNatsClient.Internals.Extensions
             var endPoint = new DnsEndPoint(host.Address, host.Port);
 
             var connectTask = socket.ConnectAsync(endPoint);
-            if (connectTask.Wait(timeoutMs, cancellationToken))
+            var firstCompletedTask = Task.WhenAny(connectTask, Task.Delay(timeoutMs, cancellationToken));
+            if (firstCompletedTask == connectTask)
                 return;
 
             throw NatsException.FailedToConnectToHost(

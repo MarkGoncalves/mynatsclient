@@ -30,7 +30,11 @@ namespace MyNatsClient
             _isDisposed = true;
             GC.SuppressFinalize(this);
 
-            var copy = _subscriptions.Values.ToArray();
+            var copy = _subscriptions
+                .Values
+                .OfType<IDisposable>()
+                .ToArray();
+
             _subscriptions.Clear();
 
             Try.DisposeAll(copy);
