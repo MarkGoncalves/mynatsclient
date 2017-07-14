@@ -52,9 +52,11 @@ namespace MyNatsClient
                 {
                     Logger.Error("Error in observer while processing message.", ex);
 
-                    OnException?.Invoke(ev, ex);
+                    Swallow.Everything(
+                        () => subscription.OnError(ex),
+                        () => subscription.Dispose());
 
-                    subscription.OnError(ex);
+                    OnException?.Invoke(ev, ex);
                 }
             }
         }

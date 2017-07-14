@@ -26,14 +26,8 @@ namespace MyNatsClient.UnitTests
         {
             var callCount = 0;
 
-            UnitUnderTest.Subscribe(ev =>
-            {
-                Interlocked.Increment(ref callCount);
-            });
-            UnitUnderTest.Subscribe(ev =>
-            {
-                Interlocked.Increment(ref callCount);
-            });
+            UnitUnderTest.Subscribe(ev => Interlocked.Increment(ref callCount));
+            UnitUnderTest.Subscribe(ev => Interlocked.Increment(ref callCount));
 
             UnitUnderTest.Dispatch(Mock.Of<IClientEvent>());
 
@@ -45,10 +39,9 @@ namespace MyNatsClient.UnitTests
         {
             var thrown = new Exception("I FAILED!");
             Exception caught = null;
-            UnitUnderTest.Subscribe(ev =>
-            {
-                throw thrown;
-            }, ex => caught = ex);
+            UnitUnderTest.Subscribe(
+                ev => throw thrown,
+                ex => caught = ex);
 
             UnitUnderTest.Dispatch(Mock.Of<IClientEvent>());
 
@@ -74,18 +67,11 @@ namespace MyNatsClient.UnitTests
             Exception caughtInCommonHandler = null;
             Exception caughtInObserverHandler = null;
 
-            UnitUnderTest.OnException = (ev, ex) =>
-            {
-                caughtInCommonHandler = ex;
-            };
+            UnitUnderTest.OnException = (ev, ex) => caughtInCommonHandler = ex;
 
-            UnitUnderTest.Subscribe(ev =>
-            {
-                throw thrown;
-            }, ex =>
-            {
-                caughtInObserverHandler = ex;
-            });
+            UnitUnderTest.Subscribe(
+                ev => throw thrown,
+                ex => caughtInObserverHandler = ex);
 
             UnitUnderTest.Dispatch(Mock.Of<IClientEvent>());
 
@@ -96,19 +82,19 @@ namespace MyNatsClient.UnitTests
         }
 
         [Fact]
-        public void Dispatching_Should_dispatch_to_a_failed_observer()
+        public void Dispatching_Should_not_dispatch_to_a_failed_observer()
         {
             UnitUnderTest = new ObservableOf<IClientEvent>();
 
-            var fake = new Mock<IObserver<IClientEvent>>();
-            fake.Setup(f => f.OnNext(It.IsAny<IClientEvent>())).Throws<Exception>();
-            UnitUnderTest.Subscribe(fake.Object);
+            var fakeObserver = new Mock<IObserver<IClientEvent>>();
+            fakeObserver.Setup(f => f.OnNext(It.IsAny<IClientEvent>())).Throws<Exception>();
+            UnitUnderTest.Subscribe(fakeObserver.Object);
 
             UnitUnderTest.Dispatch(Mock.Of<IClientEvent>());
             UnitUnderTest.Dispatch(Mock.Of<IClientEvent>());
 
-            fake.Verify(f => f.OnNext(It.IsAny<IClientEvent>()), Times.Exactly(2));
-            fake.Verify(f => f.OnError(It.IsAny<Exception>()), Times.Exactly(2));
+            fakeObserver.Verify(f => f.OnNext(It.IsAny<IClientEvent>()), Times.Exactly(1));
+            fakeObserver.Verify(f => f.OnError(It.IsAny<Exception>()), Times.Exactly(1));
         }
 
         [Fact]

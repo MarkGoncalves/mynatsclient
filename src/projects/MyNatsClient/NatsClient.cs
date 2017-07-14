@@ -66,14 +66,20 @@ namespace MyNatsClient
                     return;
 
                 if (_connectionInfo.AutoRespondToPing && op is PingOp)
-                    Swallow.Everything(Pong);
+                    Pong();
             }));
 
             Events.Subscribe(new DelegatingObserver<IClientEvent>(ev =>
             {
                 if (ev is ClientConnected)
                 {
-                    HandleClientConnected();
+                    foreach (var subscription in _subscriptions.Values)
+                    {
+                        if (!IsConnected)
+                            break;
+
+                        DoSub(subscription.SubscriptionInfo);
+                    }
                     return;
                 }
 
@@ -199,6 +205,8 @@ namespace MyNatsClient
 
             while (ShouldRead())
             {
+                Logger.Trace("Consume cycle");
+
                 try
                 {
                     foreach (var op in _connection.ReadOp())
@@ -215,15 +223,19 @@ namespace MyNatsClient
                 }
                 catch (IOException ioex)
                 {
+                    Logger.Error("Consumer got IOException.", ioex);
+
                     if (!ShouldRead())
                         break;
 
-                    if (ioex.InnerException is SocketException ex)
+                    if (ioex.InnerException is SocketException socketEx)
                     {
-                        if (ex.SocketErrorCode == SocketError.Interrupted)
+                        Logger.Error($"Consumer got SocketException with SocketErrorCode='{socketEx.SocketErrorCode}'");
+
+                        if (socketEx.SocketErrorCode == SocketError.Interrupted)
                             break;
 
-                        if (ex.SocketErrorCode != SocketError.TimedOut)
+                        if (socketEx.SocketErrorCode != SocketError.TimedOut)
                             throw;
                     }
 
@@ -237,7 +249,10 @@ namespace MyNatsClient
             }
 
             if (errOp != null)
+            {
+                Logger.Error($"Consumer stopped with ErrOp with message='{errOp.Message}'.");
                 _opMediator.Dispatch(errOp);
+            }
         }
 
         public void Disconnect()
@@ -704,17 +719,6 @@ namespace MyNatsClient
 
         private void RaiseClientConsumerFailed(Exception ex)
             => _eventMediator.Dispatch(new ClientConsumerFailed(this, ex));
-
-        private void HandleClientConnected()
-        {
-            foreach (var subscription in _subscriptions.Values)
-            {
-                if (!IsConnected)
-                    break;
-
-                DoSub(subscription.SubscriptionInfo);
-            }
-        }
 
         private void ThrowIfDisposed()
         {
